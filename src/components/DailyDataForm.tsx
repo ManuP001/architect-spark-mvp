@@ -37,7 +37,7 @@ export default function DailyDataForm({ onSubmit, onBack }: DailyDataFormProps) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.earnings || !formData.hours || !formData.primaryPlatform || !formData.rating) {
+    if (!formData.earnings || !formData.hours || !formData.primaryPlatform || formData.rating === 0) {
       toast({
         title: "Please fill all fields",
         description: "All fields are required to submit your daily data.",
