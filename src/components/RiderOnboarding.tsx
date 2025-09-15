@@ -54,7 +54,9 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
 
   const handleNext = () => {
     if (step < 4) {
-      setStep(step + 1);
+      if (validateCurrentStep()) {
+        setStep(step + 1);
+      }
     } else {
       if (validateForm()) {
         onComplete(formData);
@@ -70,6 +72,42 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
     if (step > 1) {
       setStep(step - 1);
     }
+  };
+
+  const validateCurrentStep = () => {
+    switch (step) {
+      case 1:
+        if (!formData.name || !formData.phone) {
+          toast({
+            title: "Please fill all fields",
+            description: "Name and mobile number are required.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        break;
+      case 2:
+        if (!formData.weeklyGoal) {
+          toast({
+            title: "Please fill all fields",
+            description: "Weekly income target is required.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        break;
+      case 3:
+        if (!formData.area) {
+          toast({
+            title: "Please fill all fields",
+            description: "Please select your preferred area.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        break;
+    }
+    return true;
   };
 
   const validateForm = () => {
