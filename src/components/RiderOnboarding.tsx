@@ -73,7 +73,7 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.phone || !formData.weeklyGoal || !formData.area) {
+    if (!formData.name || !formData.phone || !formData.weeklyGoal || !formData.area || formData.platforms.length === 0) {
       toast({
         title: "Please fill all required fields",
         variant: "destructive",
