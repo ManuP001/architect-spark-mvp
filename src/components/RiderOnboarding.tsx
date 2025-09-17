@@ -14,7 +14,7 @@ interface OnboardingData {
   phone: string;
   weeklyGoal: string;
   hoursPerDay: string;
-  area: string;
+  area: string[];
   platforms: string[];
 }
 
@@ -48,7 +48,7 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
     phone: "",
     weeklyGoal: "",
     hoursPerDay: "",
-    area: "",
+    area: [],
     platforms: []
   });
 
@@ -85,6 +85,15 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
           });
           return false;
         }
+        // Validate mobile number - should be exactly 10 digits
+        if (formData.phone && !/^\d{10}$/.test(formData.phone)) {
+          toast({
+            title: "Invalid mobile number",
+            description: "Mobile number should be exactly 10 digits.",
+            variant: "destructive",
+          });
+          return false;
+        }
         break;
       case 2:
         if (!formData.weeklyGoal) {
@@ -97,10 +106,10 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
         }
         break;
       case 3:
-        if (!formData.area) {
+        if (formData.area.length === 0) {
           toast({
             title: "Please fill all fields",
-            description: "Please select your preferred area.",
+            description: "Please select at least one preferred area.",
             variant: "destructive",
           });
           return false;
@@ -111,7 +120,7 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
   };
 
   const validateForm = () => {
-    if (!formData.name || !formData.phone || !formData.weeklyGoal || !formData.area || formData.platforms.length === 0) {
+    if (!formData.name || !formData.phone || !formData.weeklyGoal || formData.area.length === 0 || formData.platforms.length === 0) {
       toast({
         title: "Please fill all required fields",
         variant: "destructive",
@@ -119,6 +128,15 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
       return false;
     }
     return true;
+  };
+
+  const toggleArea = (area: string) => {
+    setFormData(prev => ({
+      ...prev,
+      area: prev.area.includes(area)
+        ? prev.area.filter(a => a !== area)
+        : [...prev.area, area]
+    }));
   };
 
   const togglePlatform = (platform: string) => {
@@ -255,20 +273,22 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
             )}
 
             {step === 3 && (
-              <div className="space-y-2">
-                <Label htmlFor="area">HSR Layout Area</Label>
-                <Select value={formData.area} onValueChange={(value) => setFormData(prev => ({ ...prev, area: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your preferred area" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HSR_AREAS.map((area) => (
-                      <SelectItem key={area} value={area}>
+              <div className="space-y-4">
+                <Label className="text-sm font-medium mb-3 block">HSR Layout Areas (Select Multiple)</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {HSR_AREAS.map((area) => (
+                    <div key={area} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={area}
+                        checked={formData.area.includes(area)}
+                        onCheckedChange={() => toggleArea(area)}
+                      />
+                      <Label htmlFor={area} className="text-sm">
                         {area}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
