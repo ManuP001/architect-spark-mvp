@@ -14,7 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      delivery_platforms: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      rider_platforms: {
+        Row: {
+          created_at: string
+          id: string
+          platform_id: string
+          rider_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform_id: string
+          rider_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform_id?: string
+          rider_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_platforms_platform_id_fkey"
+            columns: ["platform_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_platforms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_platforms_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rider_profiles: {
+        Row: {
+          age: number
+          created_at: string
+          hours_per_day: number
+          id: string
+          name: string
+          phone: string
+          updated_at: string
+          user_id: string
+          weekly_goal: number
+        }
+        Insert: {
+          age: number
+          created_at?: string
+          hours_per_day: number
+          id?: string
+          name: string
+          phone: string
+          updated_at?: string
+          user_id: string
+          weekly_goal: number
+        }
+        Update: {
+          age?: number
+          created_at?: string
+          hours_per_day?: number
+          id?: string
+          name?: string
+          phone?: string
+          updated_at?: string
+          user_id?: string
+          weekly_goal?: number
+        }
+        Relationships: []
+      }
+      rider_service_areas: {
+        Row: {
+          created_at: string
+          id: string
+          rider_profile_id: string
+          service_area_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rider_profile_id: string
+          service_area_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rider_profile_id?: string
+          service_area_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_service_areas_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_service_areas_service_area_id_fkey"
+            columns: ["service_area_id"]
+            isOneToOne: false
+            referencedRelation: "service_areas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_areas: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
