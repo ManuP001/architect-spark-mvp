@@ -16,23 +16,39 @@ export const useRiderProfile = () => {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('🔍 Fetching user profile...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('❌ Auth error:', userError);
+        setError(`Authentication error: ${userError.message}`);
+        return;
+      }
       
       if (!user) {
+        console.log('⚠️ No authenticated user found');
         setRiderProfile(null);
         return;
       }
 
+      console.log('✅ Authenticated user found:', user.id);
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('❌ Profile fetch error:', profileError);
+        throw profileError;
+      }
+      
+      console.log('📊 Profile fetched:', profile ? 'Found' : 'Not found');
       setRiderProfile(profile);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch profile');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch profile';
+      console.error('❌ Profile fetch failed:', errorMsg);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -76,9 +92,20 @@ export const useRiderProfile = () => {
     platforms: string[];
   }) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No authenticated user');
+      console.log('🚀 Creating rider profile...');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('❌ Auth error during profile creation:', userError);
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
+      
+      if (!user) {
+        console.error('❌ No authenticated user for profile creation');
+        throw new Error('No authenticated user - Please sign up first');
+      }
 
+      console.log('✅ Creating profile for user:', user.id);
       // Create rider profile
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
@@ -93,7 +120,10 @@ export const useRiderProfile = () => {
         .select()
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('❌ Profile creation error:', profileError);
+        throw profileError;
+      }
 
       // Link service areas
       if (profileData.areas.length > 0) {

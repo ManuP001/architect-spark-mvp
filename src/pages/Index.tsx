@@ -4,12 +4,13 @@ import RiderOnboarding from "@/components/RiderOnboarding";
 import RiderDashboard from "@/components/RiderDashboard";
 import DailyDataForm from "@/components/DailyDataForm";
 import AdminPanel from "@/components/AdminPanel";
+import AuthTestPanel from "@/components/AuthTestPanel";
 import { useRiderProfile } from "@/hooks/useRiderProfile";
 import { useDailyActivities } from "@/hooks/useDailyActivities";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Index() {
-  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin'>('onboarding');
+  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('onboarding');
   const { riderProfile, loading } = useRiderProfile();
   const { getWeeklyStats } = useDailyActivities(riderProfile?.id);
 
@@ -87,6 +88,13 @@ export default function Index() {
             <Button 
               variant="outline" 
               size="sm"
+              onClick={() => setCurrentView('test')}
+            >
+              Debug
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
               onClick={() => setCurrentView('admin')}
             >
               Admin
@@ -108,8 +116,24 @@ export default function Index() {
         />
       )}
       
+      {currentView === 'test' && (
+        <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
+          <div className="max-w-4xl mx-auto pt-8">
+            <div className="mb-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
+              >
+                ← Back
+              </Button>
+            </div>
+            <AuthTestPanel />
+          </div>
+        </div>
+      )}
+      
       {/* Show onboarding if no profile */}
-      {!riderProfile && currentView !== 'admin' && (
+      {!riderProfile && currentView !== 'admin' && currentView !== 'test' && (
         <RiderOnboarding onComplete={handleOnboardingComplete} />
       )}
     </div>

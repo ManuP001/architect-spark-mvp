@@ -37,9 +37,26 @@ export const useDailyActivities = (riderProfileId?: string) => {
     rating: number;
     date?: string;
   }) => {
-    if (!riderProfileId) throw new Error('No rider profile ID');
+    if (!riderProfileId) {
+      console.error('❌ No rider profile ID for activity');
+      throw new Error('No rider profile ID');
+    }
 
     try {
+      console.log('📝 Adding daily activity...', activityData);
+      
+      // Check if user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('❌ Auth error during activity creation:', userError);
+        throw new Error(`Authentication error: ${userError.message}`);
+      }
+      
+      if (!user) {
+        console.error('❌ No authenticated user for activity creation');
+        throw new Error('No authenticated user - Please sign up first');
+      }
+
       const { data, error } = await supabase
         .from('daily_activities')
         .insert({
@@ -53,13 +70,19 @@ export const useDailyActivities = (riderProfileId?: string) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Activity creation error:', error);
+        throw error;
+      }
       
+      console.log('✅ Activity created successfully:', data);
       // Add to local state
       setActivities(prev => [data, ...prev]);
       return data;
     } catch (err) {
-      throw err instanceof Error ? err : new Error('Failed to add activity');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to add activity';
+      console.error('❌ Add activity failed:', errorMsg);
+      throw err instanceof Error ? err : new Error(errorMsg);
     }
   };
 
