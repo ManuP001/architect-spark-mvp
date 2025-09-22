@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/components/ui/use-toast";
 import { Bike, Target, MapPin, Smartphone } from "lucide-react";
+import { useRiderProfile } from "@/hooks/useRiderProfile";
 
 interface OnboardingData {
   name: string;
@@ -37,7 +38,7 @@ const PLATFORMS = {
 };
 
 interface RiderOnboardingProps {
-  onComplete: (data: OnboardingData) => void;
+  onComplete: () => void;
 }
 
 export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
@@ -51,19 +52,42 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
     area: [],
     platforms: []
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { createProfile, serviceAreas, platforms } = useRiderProfile();
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < 4) {
       if (validateCurrentStep()) {
         setStep(step + 1);
       }
     } else {
       if (validateForm()) {
-        onComplete(formData);
-        toast({
-          title: "Welcome to Rider Co-pilot!",
-          description: "Your profile has been created successfully.",
-        });
+        setIsSubmitting(true);
+        try {
+          await createProfile({
+            name: formData.name,
+            age: parseInt(formData.age),
+            phone: formData.phone,
+            weekly_goal: parseFloat(formData.weeklyGoal),
+            hours_per_day: parseFloat(formData.hoursPerDay) || 8,
+            areas: formData.area,
+            platforms: formData.platforms,
+          });
+          
+          toast({
+            title: "Welcome to Rider Co-pilot!",
+            description: "Your profile has been created successfully.",
+          });
+          onComplete();
+        } catch (error) {
+          toast({
+            title: "Error creating profile",
+            description: error instanceof Error ? error.message : "Please try again",
+            variant: "destructive",
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
       }
     }
   };
@@ -274,17 +298,17 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
 
             {step === 3 && (
               <div className="space-y-4">
-                <Label className="text-sm font-medium mb-3 block">HSR Layout Areas (Select Multiple)</Label>
+                <Label className="text-sm font-medium mb-3 block">Service Areas (Select Multiple)</Label>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {HSR_AREAS.map((area) => (
-                    <div key={area} className="flex items-center space-x-2">
+                  {serviceAreas.map((area) => (
+                    <div key={area.id} className="flex items-center space-x-2">
                       <Checkbox
-                        id={area}
-                        checked={formData.area.includes(area)}
-                        onCheckedChange={() => toggleArea(area)}
+                        id={area.id}
+                        checked={formData.area.includes(area.name)}
+                        onCheckedChange={() => toggleArea(area.name)}
                       />
-                      <Label htmlFor={area} className="text-sm">
-                        {area}
+                      <Label htmlFor={area.id} className="text-sm">
+                        {area.name}
                       </Label>
                     </div>
                   ))}
@@ -294,11 +318,19 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
 
             {step === 4 && (
               <div className="space-y-4">
-                {Object.entries(PLATFORMS).map(([category, platforms]) => (
+                {Object.entries(
+                  platforms.reduce((acc, platform) => {
+                    if (!acc[platform.category]) {
+                      acc[platform.category] = [];
+                    }
+                    acc[platform.category].push(platform.name);
+                    return acc;
+                  }, {} as Record<string, string[]>)
+                ).map(([category, platformNames]) => (
                   <div key={category}>
                     <Label className="text-sm font-medium mb-3 block">{category}</Label>
                     <div className="space-y-2">
-                      {platforms.map((platform) => (
+                      {platformNames.map((platform) => (
                         <div key={platform} className="flex items-center space-x-2">
                           <Checkbox
                             id={platform}
@@ -329,9 +361,10 @@ export default function RiderOnboarding({ onComplete }: RiderOnboardingProps) {
           </Button>
           <Button
             onClick={handleNext}
+            disabled={isSubmitting}
             className="gradient-primary hover:opacity-90 transition-smooth"
           >
-            {step === 4 ? "Complete Setup" : "Next"}
+            {isSubmitting ? "Creating Profile..." : step === 4 ? "Complete Setup" : "Next"}
           </Button>
         </div>
       </div>

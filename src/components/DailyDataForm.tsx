@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { Calendar, Clock, IndianRupee, Star, Smartphone } from "lucide-react";
+import { useDailyActivities } from "@/hooks/useDailyActivities";
+import { useRiderProfile } from "@/hooks/useRiderProfile";
 
 interface DailyData {
   earnings: string;
@@ -15,13 +17,9 @@ interface DailyData {
   date: string;
 }
 
-const PLATFORMS = [
-  { category: "Food Delivery", items: ["Zomato", "Swiggy", "Swish"] },
-  { category: "Quick Commerce", items: ["Blinkit", "Instamart", "Zepto", "FirstClub", "Slikk"] }
-];
 
 interface DailyDataFormProps {
-  onSubmit: (data: DailyData) => void;
+  onSubmit: () => void;
   onBack: () => void;
 }
 
@@ -33,8 +31,11 @@ export default function DailyDataForm({ onSubmit, onBack }: DailyDataFormProps) 
     rating: 0,
     date: new Date().toISOString().split('T')[0]
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { riderProfile, platforms } = useRiderProfile();
+  const { addActivity } = useDailyActivities(riderProfile?.id);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.earnings || !formData.hours || !formData.primaryPlatform || formData.rating === 0) {
@@ -46,11 +47,30 @@ export default function DailyDataForm({ onSubmit, onBack }: DailyDataFormProps) 
       return;
     }
 
-    onSubmit(formData);
-    toast({
-      title: "Daily data submitted!",
-      description: "Your earnings data has been recorded successfully.",
-    });
+    setIsSubmitting(true);
+    try {
+      await addActivity({
+        earnings: parseFloat(formData.earnings),
+        hours: parseFloat(formData.hours),
+        primaryPlatform: formData.primaryPlatform,
+        rating: formData.rating,
+        date: formData.date,
+      });
+
+      toast({
+        title: "Daily data submitted!",
+        description: "Your earnings data has been recorded successfully.",
+      });
+      onSubmit();
+    } catch (error) {
+      toast({
+        title: "Error submitting data",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRatingClick = (rating: number) => {
@@ -135,12 +155,20 @@ export default function DailyDataForm({ onSubmit, onBack }: DailyDataFormProps) 
                     <SelectValue placeholder="Select primary platform" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PLATFORMS.map((category) => (
-                      <div key={category.category}>
+                    {Object.entries(
+                      platforms.reduce((acc, platform) => {
+                        if (!acc[platform.category]) {
+                          acc[platform.category] = [];
+                        }
+                        acc[platform.category].push(platform.name);
+                        return acc;
+                      }, {} as Record<string, string[]>)
+                    ).map(([category, platformNames]) => (
+                      <div key={category}>
                         <div className="px-2 py-1 text-sm font-medium text-muted-foreground">
-                          {category.category}
+                          {category}
                         </div>
-                        {category.items.map((platform) => (
+                        {platformNames.map((platform) => (
                           <SelectItem key={platform} value={platform}>
                             {platform}
                           </SelectItem>
@@ -198,9 +226,10 @@ export default function DailyDataForm({ onSubmit, onBack }: DailyDataFormProps) 
             </Button>
             <Button
               type="submit"
+              disabled={isSubmitting}
               className="flex-1 gradient-primary hover:opacity-90 transition-smooth"
             >
-              Submit Data
+              {isSubmitting ? "Submitting..." : "Submit Data"}
             </Button>
           </div>
         </form>

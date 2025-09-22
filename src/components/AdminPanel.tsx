@@ -18,6 +18,7 @@ import {
   Send,
   Eye
 } from "lucide-react";
+import { useAdminData } from "@/hooks/useAdminData";
 
 interface RiderSummary {
   id: string;
@@ -49,55 +50,21 @@ interface Recommendation {
 }
 
 interface AdminPanelProps {
-  riders: RiderSummary[];
-  recommendations: Recommendation[];
-  onCreateRecommendation: (rec: Omit<Recommendation, 'id' | 'createdAt' | 'delivered' | 'followed'>) => void;
   onBack: () => void;
 }
 
-export default function AdminPanel({ riders, recommendations, onCreateRecommendation, onBack }: AdminPanelProps) {
+export default function AdminPanel({ onBack }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'insights' | 'recommendations'>('overview');
-  const [newRecommendation, setNewRecommendation] = useState({
-    riderId: '',
-    message: '',
-    urgency: 'medium' as 'low' | 'medium' | 'high'
-  });
-
-  const totalEarnings = riders.reduce((sum, rider) => sum + rider.currentEarnings, 0);
-  const avgSatisfaction = riders.length > 0 
-    ? riders.reduce((sum, rider) => sum + rider.satisfactionRating, 0) / riders.length 
-    : 0;
-  const activeRiders = riders.filter(rider => {
-    const lastActive = new Date(rider.lastActive);
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-    return lastActive > threeDaysAgo;
-  }).length;
+  const { riders, loading, getRiderStats } = useAdminData();
+  const stats = getRiderStats();
+  
+  // Mock recommendations for now - you can extend this to save to database later
+  const [recommendations] = useState<Recommendation[]>([]);
 
   const handleCreateRecommendation = () => {
-    if (!newRecommendation.riderId || !newRecommendation.message) {
-      toast({
-        title: "Please fill all fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    onCreateRecommendation({
-      riderId: newRecommendation.riderId,
-      message: newRecommendation.message,
-      urgency: newRecommendation.urgency
-    });
-
-    setNewRecommendation({
-      riderId: '',
-      message: '',
-      urgency: 'medium'
-    });
-
     toast({
-      title: "Recommendation sent!",
-      description: "The recommendation has been delivered to the rider.",
+      title: "Feature coming soon!",
+      description: "Recommendations feature will be implemented next.",
     });
   };
 
@@ -163,9 +130,9 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{riders.length}</div>
+                  <div className="text-2xl font-bold">{stats.totalRiders}</div>
                   <p className="text-xs text-muted-foreground">
-                    {activeRiders} active this week
+                    {stats.activeRiders} active this week
                   </p>
                 </CardContent>
               </Card>
@@ -179,7 +146,7 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold earnings-text">
-                    ₹{totalEarnings.toLocaleString('en-IN')}
+                    ₹{stats.totalEarnings.toLocaleString('en-IN')}
                   </div>
                   <p className="text-xs text-muted-foreground">This week</p>
                 </CardContent>
@@ -193,7 +160,7 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{avgSatisfaction.toFixed(1)}/5</div>
+                  <div className="text-2xl font-bold">{stats.avgSatisfaction.toFixed(1)}/5</div>
                   <p className="text-xs text-muted-foreground">Rider rating</p>
                 </CardContent>
               </Card>
@@ -221,8 +188,17 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
                 <CardDescription>Overview of all riders and their performance</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {riders.map((rider) => (
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading rider data...
+                  </div>
+                ) : riders.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No riders have registered yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {riders.map((rider) => (
                     <div key={rider.id} className="flex items-center justify-between p-4 rounded-lg border">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center">
@@ -240,22 +216,23 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`font-bold text-lg ${getProgressColor(rider.currentEarnings, rider.weeklyGoal)}`}>
-                          ₹{rider.currentEarnings.toLocaleString('en-IN')}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          of ₹{rider.weeklyGoal.toLocaleString('en-IN')} goal
-                        </div>
-                        <div className="flex items-center gap-1 mt-1">
-                          {Array.from({ length: Math.round(rider.satisfactionRating) }).map((_, i) => (
-                            <div key={i} className="w-2 h-2 rounded-full bg-warning"></div>
-                          ))}
+                        <div className="text-right">
+                          <div className={`font-bold text-lg ${getProgressColor(rider.currentEarnings, Number(rider.weekly_goal))}`}>
+                            ₹{rider.currentEarnings.toLocaleString('en-IN')}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            of ₹{Number(rider.weekly_goal).toLocaleString('en-IN')} goal
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            {Array.from({ length: Math.round(rider.satisfactionRating) }).map((_, i) => (
+                              <div key={i} className="w-2 h-2 rounded-full bg-warning"></div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>
@@ -322,117 +299,22 @@ export default function AdminPanel({ riders, recommendations, onCreateRecommenda
 
         {/* Recommendations Tab */}
         {activeTab === 'recommendations' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Create Recommendation */}
-            <Card className="stat-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Send className="h-5 w-5 text-secondary" />
-                  Create Recommendation
-                </CardTitle>
-                <CardDescription>Send personalized insights to riders</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Select Rider</Label>
-                  <Select 
-                    value={newRecommendation.riderId} 
-                    onValueChange={(value) => setNewRecommendation(prev => ({ ...prev, riderId: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a rider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {riders.map((rider) => (
-                        <SelectItem key={rider.id} value={rider.id}>
-                          {rider.name} - ₹{rider.currentEarnings}/₹{rider.weeklyGoal}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Urgency Level</Label>
-                  <Select 
-                    value={newRecommendation.urgency} 
-                    onValueChange={(value: 'low' | 'medium' | 'high') => 
-                      setNewRecommendation(prev => ({ ...prev, urgency: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low - General Tip</SelectItem>
-                      <SelectItem value="medium">Medium - Important Insight</SelectItem>
-                      <SelectItem value="high">High - Urgent Action Needed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Recommendation Message</Label>
-                  <Textarea 
-                    placeholder="e.g., Try focusing on Sector 3 during 7-9 PM today. High demand expected for Zomato orders due to ongoing promotion."
-                    value={newRecommendation.message}
-                    onChange={(e) => setNewRecommendation(prev => ({ ...prev, message: e.target.value }))}
-                    rows={4}
-                  />
-                </div>
-
-                <Button 
-                  onClick={handleCreateRecommendation}
-                  className="w-full gradient-secondary hover:opacity-90"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Recommendation
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Recent Recommendations */}
-            <Card className="stat-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-info" />
-                  Recent Recommendations
-                </CardTitle>
-                <CardDescription>Track recommendation delivery and effectiveness</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {recommendations.slice(-10).reverse().map((rec) => {
-                    const rider = riders.find(r => r.id === rec.riderId);
-                    return (
-                      <div key={rec.id} className="p-3 rounded-lg border">
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div className="flex-1">
-                            <div className="font-medium text-sm">
-                              To: {rider?.name || 'Unknown Rider'}
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {rec.message}
-                            </p>
-                          </div>
-                          <Badge variant={getUrgencyColor(rec.urgency)} className="text-xs">
-                            {rec.urgency}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{new Date(rec.createdAt).toLocaleDateString('en-IN')}</span>
-                          <div className="flex gap-2">
-                            {rec.delivered && <Badge variant="outline" className="text-xs">Delivered</Badge>}
-                            {rec.followed && <Badge variant="secondary" className="text-xs">Followed</Badge>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="stat-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5 text-secondary" />
+                Recommendations
+              </CardTitle>
+              <CardDescription>Feature coming soon - Send personalized insights to riders</CardDescription>
+            </CardHeader>
+            <CardContent className="py-8">
+              <div className="text-center text-muted-foreground">
+                <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium mb-2">Recommendations Coming Soon</p>
+                <p className="text-sm">This feature will allow you to send personalized insights and recommendations to riders based on their performance data.</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

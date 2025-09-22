@@ -1,212 +1,117 @@
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import RiderOnboarding from "@/components/RiderOnboarding";
 import RiderDashboard from "@/components/RiderDashboard";
 import DailyDataForm from "@/components/DailyDataForm";
 import AdminPanel from "@/components/AdminPanel";
-import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
+import { useRiderProfile } from "@/hooks/useRiderProfile";
+import { useDailyActivities } from "@/hooks/useDailyActivities";
+import { supabase } from "@/integrations/supabase/client";
 
-interface RiderData {
-  name: string;
-  age: string;
-  phone: string;
-  weeklyGoal: number;
-  hoursPerDay: string;
-  area: string;
-  platforms: string[];
-  currentEarnings: number;
-  dailyData: Array<{
-    date: string;
-    earnings: number;
-    hours: number;
-    platform: string;
-    rating: number;
-  }>;
-  recommendations: Array<{
-    id: string;
-    riderId: string;
-    message: string;
-    urgency: 'low' | 'medium' | 'high';
-    delivered: boolean;
-    followed: boolean;
-    createdAt: string;
-  }>;
-}
-
-const Index = () => {
+export default function Index() {
   const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin'>('onboarding');
-  const [riderData, setRiderData] = useState<RiderData | null>(null);
+  const { riderProfile, loading } = useRiderProfile();
+  const { getWeeklyStats } = useDailyActivities(riderProfile?.id);
 
-  // Sample data for demonstration
-  const sampleRiderData: RiderData = {
-    name: "Rajesh Kumar",
-    age: "28",
-    phone: "+91 9876543210",
-    weeklyGoal: 5000,
-    hoursPerDay: "8",
-    area: "HSR Layout Sector 2",
-    platforms: ["Zomato", "Swiggy", "Blinkit"],
-    currentEarnings: 3200,
-    dailyData: [
-      { date: "2024-01-08", earnings: 650, hours: 8, platform: "Zomato", rating: 4 },
-      { date: "2024-01-09", earnings: 580, hours: 7.5, platform: "Swiggy", rating: 3 },
-      { date: "2024-01-10", earnings: 720, hours: 9, platform: "Zomato", rating: 5 },
-      { date: "2024-01-11", earnings: 620, hours: 8, platform: "Blinkit", rating: 4 },
-      { date: "2024-01-12", earnings: 630, hours: 7, platform: "Swiggy", rating: 4 },
-    ],
-    recommendations: [
-      {
-        id: "1",
-        riderId: "1",
-        message: "High demand expected in Sector 3 during 7-9 PM today. Consider switching to that area for better earnings.",
-        urgency: "medium",
-        delivered: true,
-        followed: false,
-        createdAt: "2024-01-12T10:00:00Z"
-      },
-      {
-        id: "2", 
-        riderId: "1",
-        message: "Zomato is running a promotion today - you might see 15% more orders than usual.",
-        urgency: "low",
-        delivered: true,
-        followed: true,
-        createdAt: "2024-01-12T08:00:00Z"
+  const handleOnboardingComplete = () => {
+    setCurrentView('dashboard');
+  };
+
+  const handleDailyDataSubmit = () => {
+    setCurrentView('dashboard');
+  };
+
+  // Check authentication status and redirect accordingly
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user && currentView !== 'admin') {
+        // For now, we'll skip auth and allow guest access
+        // In production, you'd want to implement proper authentication
       }
-    ]
-  };
-
-  const handleOnboardingComplete = (data: any) => {
-    const newRiderData: RiderData = {
-      ...data,
-      weeklyGoal: parseInt(data.weeklyGoal),
-      currentEarnings: 0,
-      dailyData: [],
-      recommendations: []
     };
-    setRiderData(newRiderData);
-    setCurrentView('dashboard');
-  };
+    
+    checkAuth();
+  }, []);
 
-  const handleDailyDataSubmit = (data: any) => {
-    if (riderData) {
-      const updatedData = {
-        ...riderData,
-        currentEarnings: riderData.currentEarnings + parseInt(data.earnings),
-        dailyData: [...riderData.dailyData, {
-          date: data.date,
-          earnings: parseInt(data.earnings),
-          hours: parseFloat(data.hours),
-          platform: data.primaryPlatform,
-          rating: data.rating
-        }]
-      };
-      setRiderData(updatedData);
+  // Auto-redirect to dashboard if profile exists
+  useEffect(() => {
+    if (!loading && riderProfile && currentView === 'onboarding') {
+      setCurrentView('dashboard');
     }
-    setCurrentView('dashboard');
-  };
+  }, [loading, riderProfile, currentView]);
 
-  const handleCreateRecommendation = (rec: any) => {
-    if (riderData) {
-      const newRec = {
-        ...rec,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        delivered: true,
-        followed: false
-      };
-      setRiderData({
-        ...riderData,
-        recommendations: [...riderData.recommendations, newRec]
-      });
-    }
-  };
+  const weeklyStats = getWeeklyStats();
+  
+  // Create dashboard data from Supabase data
+  const dashboardData = riderProfile ? {
+    name: riderProfile.name,
+    weeklyGoal: Number(riderProfile.weekly_goal),
+    currentEarnings: weeklyStats.totalEarnings,
+    dailyData: weeklyStats.activities.map(activity => ({
+      date: activity.activity_date,
+      earnings: Number(activity.earnings),
+      hours: Number(activity.hours_worked),
+      platform: activity.primary_platform,
+      rating: activity.satisfaction_rating
+    })),
+    recommendations: [] // Mock for now
+  } : null;
 
-  // Demo mode toggle
-  const enableDemo = () => {
-    setRiderData(sampleRiderData);
-    setCurrentView('dashboard');
-  };
-
-  if (currentView === 'onboarding') {
+  if (loading) {
     return (
-      <div>
-        <RiderOnboarding onComplete={handleOnboardingComplete} />
-        {/* Demo button for testing */}
-        <div className="fixed bottom-4 right-4">
-          <Button onClick={enableDemo} variant="outline" size="sm">
-            Try Demo
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (currentView === 'daily-input' && riderData) {
-    return (
-      <DailyDataForm 
-        onSubmit={handleDailyDataSubmit}
-        onBack={() => setCurrentView('dashboard')}
-      />
-    );
-  }
-
-  if (currentView === 'admin') {
-    const riders = riderData ? [{
-      id: "1",
-      name: riderData.name,
-      phone: riderData.phone,
-      weeklyGoal: riderData.weeklyGoal,
-      currentEarnings: riderData.currentEarnings,
-      avgDailyHours: parseFloat(riderData.hoursPerDay),
-      lastActive: new Date().toISOString(),
-      satisfactionRating: riderData.dailyData.length > 0 
-        ? riderData.dailyData.reduce((sum, day) => sum + day.rating, 0) / riderData.dailyData.length 
-        : 0
-    }] : [];
-
-    return (
-      <AdminPanel
-        riders={riders}
-        recommendations={riderData?.recommendations || []}
-        onCreateRecommendation={handleCreateRecommendation}
-        onBack={() => setCurrentView('dashboard')}
-      />
-    );
-  }
-
-  if (currentView === 'dashboard' && riderData) {
-    return (
-      <div>
-        <RiderDashboard
-          riderData={riderData}
-          onAddDailyData={() => setCurrentView('daily-input')}
-          onViewRecommendations={() => {}}
-        />
-        {/* Admin access button */}
-        <div className="fixed bottom-4 right-4">
-          <Button 
-            onClick={() => setCurrentView('admin')}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            Admin
-          </Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Rider Co-pilot</h1>
-        <p className="text-xl text-muted-foreground">Loading your dashboard...</p>
-      </div>
+    <div className="min-h-screen">
+      {currentView === 'onboarding' && !riderProfile && (
+        <RiderOnboarding onComplete={handleOnboardingComplete} />
+      )}
+      
+      {currentView === 'dashboard' && dashboardData && (
+        <div className="relative">
+          <RiderDashboard 
+            riderData={dashboardData}
+            onAddDailyData={() => setCurrentView('daily-input')}
+            onViewRecommendations={() => alert('Recommendations feature coming soon!')}
+          />
+          
+          <div className="fixed bottom-4 right-4 flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setCurrentView('admin')}
+            >
+              Admin
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {currentView === 'daily-input' && (
+        <DailyDataForm 
+          onSubmit={handleDailyDataSubmit}
+          onBack={() => setCurrentView('dashboard')}
+        />
+      )}
+      
+      {currentView === 'admin' && (
+        <AdminPanel 
+          onBack={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
+        />
+      )}
+      
+      {/* Show onboarding if no profile */}
+      {!riderProfile && currentView !== 'admin' && (
+        <RiderOnboarding onComplete={handleOnboardingComplete} />
+      )}
     </div>
   );
-};
-
-export default Index;
+}

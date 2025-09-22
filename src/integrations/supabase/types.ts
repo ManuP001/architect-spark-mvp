@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_activities: {
+        Row: {
+          activity_date: string
+          created_at: string
+          earnings: number
+          hours_worked: number
+          id: string
+          primary_platform: string
+          rider_profile_id: string
+          satisfaction_rating: number
+          updated_at: string
+        }
+        Insert: {
+          activity_date?: string
+          created_at?: string
+          earnings: number
+          hours_worked: number
+          id?: string
+          primary_platform: string
+          rider_profile_id: string
+          satisfaction_rating: number
+          updated_at?: string
+        }
+        Update: {
+          activity_date?: string
+          created_at?: string
+          earnings?: number
+          hours_worked?: number
+          id?: string
+          primary_platform?: string
+          rider_profile_id?: string
+          satisfaction_rating?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       delivery_platforms: {
         Row: {
           category: string
