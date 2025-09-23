@@ -5,14 +5,16 @@ import RiderDashboard from "@/components/RiderDashboard";
 import DailyDataForm from "@/components/DailyDataForm";
 import AdminPanel from "@/components/AdminPanel";
 import AuthTestPanel from "@/components/AuthTestPanel";
+import AuthFlow from "@/components/AuthFlow";
 import { useRiderProfile } from "@/hooks/useRiderProfile";
 import { useDailyActivities } from "@/hooks/useDailyActivities";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Index() {
-  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('onboarding');
-  const { riderProfile, loading } = useRiderProfile();
-  const { getWeeklyStats } = useDailyActivities(riderProfile?.id);
+  const [currentView, setCurrentView] = useState<'auth' | 'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('auth');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { riderProfile, loading, refreshProfile } = useRiderProfile();
+  const { getWeeklyStats, refreshActivities } = useDailyActivities(riderProfile?.id);
 
   const handleOnboardingComplete = () => {
     setCurrentView('dashboard');
@@ -22,25 +24,56 @@ export default function Index() {
     setCurrentView('dashboard');
   };
 
-  // Check authentication status and redirect accordingly
+  // Check authentication status and manage flow
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user && currentView !== 'admin') {
-        // For now, we'll skip auth and allow guest access
-        // In production, you'd want to implement proper authentication
+    const checkAuthAndProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          console.log('✅ User authenticated:', user.id);
+          setIsAuthenticated(true);
+          
+          // If authenticated but no profile, show onboarding
+          if (!riderProfile && !loading) {
+            setCurrentView('onboarding');
+          } 
+          // If authenticated and has profile, show dashboard
+          else if (riderProfile && currentView !== 'admin' && currentView !== 'test') {
+            setCurrentView('dashboard');
+          }
+        } else {
+          console.log('🔍 No authenticated user');
+          setIsAuthenticated(false);
+          if (currentView !== 'admin' && currentView !== 'test') {
+            setCurrentView('auth');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Auth check error:', error);
+        setIsAuthenticated(false);
+        setCurrentView('auth');
       }
     };
-    
-    checkAuth();
-  }, []);
 
-  // Auto-redirect to dashboard if profile exists
+    checkAuthAndProfile();
+  }, [riderProfile, loading, currentView]);
+
+  // Listen for auth changes
   useEffect(() => {
-    if (!loading && riderProfile && currentView === 'onboarding') {
-      setCurrentView('dashboard');
-    }
-  }, [loading, riderProfile, currentView]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        setIsAuthenticated(true);
+        setCurrentView('onboarding');
+        refreshProfile();
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        setCurrentView('auth');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [refreshProfile]);
 
   const weeklyStats = getWeeklyStats();
   
@@ -70,10 +103,24 @@ export default function Index() {
     );
   }
 
+  // Handle authentication success
+  const handleAuthSuccess = () => {
+    setIsAuthenticated(true);
+    setCurrentView('onboarding');
+  };
+
+  // Show auth flow if not authenticated
+  if (currentView === 'auth') {
+    return <AuthFlow onSuccess={handleAuthSuccess} />;
+  }
+
   return (
     <div className="min-h-screen">
-      {currentView === 'onboarding' && !riderProfile && (
-        <RiderOnboarding onComplete={handleOnboardingComplete} />
+      {currentView === 'onboarding' && isAuthenticated && (
+        <RiderOnboarding onComplete={() => {
+          refreshProfile();
+          setCurrentView('dashboard');
+        }} />
       )}
       
       {currentView === 'dashboard' && dashboardData && (
@@ -99,20 +146,33 @@ export default function Index() {
             >
               Admin
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                setCurrentView('auth');
+              }}
+            >
+              Sign Out
+            </Button>
           </div>
         </div>
       )}
       
       {currentView === 'daily-input' && (
         <DailyDataForm 
-          onSubmit={handleDailyDataSubmit}
+          onSubmit={() => {
+            refreshActivities();
+            setCurrentView('dashboard');
+          }}
           onBack={() => setCurrentView('dashboard')}
         />
       )}
       
       {currentView === 'admin' && (
         <AdminPanel 
-          onBack={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
+          onBack={() => setCurrentView(isAuthenticated && riderProfile ? 'dashboard' : 'auth')}
         />
       )}
       
@@ -122,7 +182,7 @@ export default function Index() {
             <div className="mb-4">
               <Button 
                 variant="outline" 
-                onClick={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
+                onClick={() => setCurrentView(isAuthenticated && riderProfile ? 'dashboard' : 'auth')}
               >
                 ← Back
               </Button>
@@ -130,11 +190,6 @@ export default function Index() {
             <AuthTestPanel />
           </div>
         </div>
-      )}
-      
-      {/* Show onboarding if no profile */}
-      {!riderProfile && currentView !== 'admin' && currentView !== 'test' && (
-        <RiderOnboarding onComplete={handleOnboardingComplete} />
       )}
     </div>
   );
