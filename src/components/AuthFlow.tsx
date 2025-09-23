@@ -11,52 +11,68 @@ interface AuthFlowProps {
 }
 
 export default function AuthFlow({ onSuccess }: AuthFlowProps) {
-  const [isSignUp, setIsSignUp] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [isOtpSent, setIsOtpSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const sendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+      // Format phone number (add +91 for India if not present)
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+      
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+      });
+
+      if (error) throw error;
+
+      setIsOtpSent(true);
+      toast({
+        title: "OTP Sent!",
+        description: `Verification code sent to ${formattedPhone}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to send OTP",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+      
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token: otp,
+        type: 'sms'
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        toast({
+          title: "Phone verified!",
+          description: "Successfully signed in with your phone number.",
         });
-
-        if (error) throw error;
-
-        if (data.user) {
-          toast({
-            title: "Account created!",
-            description: "You can now create your rider profile.",
-          });
-          onSuccess();
-        }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) throw error;
-
-        if (data.user) {
-          toast({
-            title: "Welcome back!",
-            description: "Successfully signed in.",
-          });
-          onSuccess();
-        }
+        onSuccess();
       }
     } catch (error) {
       toast({
-        title: "Authentication failed",
-        description: error instanceof Error ? error.message : "Please try again",
+        title: "Verification failed",
+        description: error instanceof Error ? error.message : "Please check your OTP and try again",
         variant: "destructive",
       });
     } finally {
@@ -69,62 +85,81 @@ export default function AuthFlow({ onSuccess }: AuthFlowProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">
-            {isSignUp ? 'Create Account' : 'Welcome Back'}
+            {!isOtpSent ? 'Enter Mobile Number' : 'Verify OTP'}
           </CardTitle>
           <CardDescription className="text-center">
-            {isSignUp 
-              ? 'Enter your details to get started as a rider' 
-              : 'Sign in to your rider account'
+            {!isOtpSent 
+              ? 'We\'ll send you a verification code to sign in' 
+              : `Enter the 6-digit code sent to ${phone}`
             }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading 
-                ? 'Please wait...' 
-                : isSignUp 
-                ? 'Create Account' 
-                : 'Sign In'
-              }
-            </Button>
-          </form>
+          {!isOtpSent ? (
+            <form onSubmit={sendOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Mobile Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="Enter 10-digit mobile number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                  required
+                  maxLength={10}
+                  minLength={10}
+                  pattern="[0-9]{10}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter your 10-digit mobile number (without +91)
+                </p>
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading || phone.length !== 10}>
+                {isLoading ? 'Sending OTP...' : 'Send OTP'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={verifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">Verification Code</Label>
+                <Input
+                  id="otp"
+                  type="text"
+                  placeholder="Enter 6-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  required
+                  maxLength={6}
+                  minLength={6}
+                  pattern="[0-9]{6}"
+                  className="text-center text-lg tracking-wider"
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading || otp.length !== 6}>
+                {isLoading ? 'Verifying...' : 'Verify & Sign In'}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  setIsOtpSent(false);
+                  setOtp('');
+                }}
+                disabled={isLoading}
+              >
+                Change Number
+              </Button>
+            </form>
+          )}
           
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-primary hover:underline"
-            >
-              {isSignUp 
-                ? 'Already have an account? Sign in' 
-                : "Don't have an account? Sign up"
-              }
-            </button>
-          </div>
+          {!isOtpSent && (
+            <div className="mt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                By continuing, you agree to receive SMS messages for verification
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
