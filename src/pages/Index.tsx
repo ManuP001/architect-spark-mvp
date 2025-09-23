@@ -5,75 +5,24 @@ import RiderDashboard from "@/components/RiderDashboard";
 import DailyDataForm from "@/components/DailyDataForm";
 import AdminPanel from "@/components/AdminPanel";
 import AuthTestPanel from "@/components/AuthTestPanel";
-import AuthFlow from "@/components/AuthFlow";
 import { useRiderProfile } from "@/hooks/useRiderProfile";
 import { useDailyActivities } from "@/hooks/useDailyActivities";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function Index() {
-  const [currentView, setCurrentView] = useState<'auth' | 'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('auth');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('onboarding');
   const { riderProfile, loading, refreshProfile } = useRiderProfile();
   const { getWeeklyStats, refreshActivities } = useDailyActivities(riderProfile?.id);
 
-  const handleOnboardingComplete = () => {
-    setCurrentView('dashboard');
-  };
-
-  const handleDailyDataSubmit = () => {
-    setCurrentView('dashboard');
-  };
-
-  // Check authentication status and manage flow
+  // Set initial view based on profile existence
   useEffect(() => {
-    const checkAuthAndProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          console.log('✅ User authenticated:', user.id);
-          setIsAuthenticated(true);
-          
-          // If authenticated but no profile, show onboarding
-          if (!riderProfile && !loading) {
-            setCurrentView('onboarding');
-          } 
-          // If authenticated and has profile, show dashboard
-          else if (riderProfile && currentView !== 'admin' && currentView !== 'test') {
-            setCurrentView('dashboard');
-          }
-        } else {
-          console.log('🔍 No authenticated user');
-          setIsAuthenticated(false);
-          if (currentView !== 'admin' && currentView !== 'test') {
-            setCurrentView('auth');
-          }
-        }
-      } catch (error) {
-        console.error('❌ Auth check error:', error);
-        setIsAuthenticated(false);
-        setCurrentView('auth');
-      }
-    };
-
-    checkAuthAndProfile();
-  }, [riderProfile, loading, currentView]);
-
-  // Listen for auth changes
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        setIsAuthenticated(true);
+    if (!loading) {
+      if (riderProfile) {
+        setCurrentView('dashboard');
+      } else {
         setCurrentView('onboarding');
-        refreshProfile();
-      } else if (event === 'SIGNED_OUT') {
-        setIsAuthenticated(false);
-        setCurrentView('auth');
       }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [refreshProfile]);
+    }
+  }, [riderProfile, loading]);
 
   const weeklyStats = getWeeklyStats();
   
@@ -103,20 +52,9 @@ export default function Index() {
     );
   }
 
-  // Handle authentication success
-  const handleAuthSuccess = () => {
-    setIsAuthenticated(true);
-    setCurrentView('onboarding');
-  };
-
-  // Show auth flow if not authenticated
-  if (currentView === 'auth') {
-    return <AuthFlow onSuccess={handleAuthSuccess} />;
-  }
-
   return (
     <div className="min-h-screen">
-      {currentView === 'onboarding' && isAuthenticated && (
+      {currentView === 'onboarding' && (
         <RiderOnboarding onComplete={() => {
           refreshProfile();
           setCurrentView('dashboard');
@@ -149,12 +87,9 @@ export default function Index() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                setCurrentView('auth');
-              }}
+              onClick={() => setCurrentView('onboarding')}
             >
-              Sign Out
+              New Profile
             </Button>
           </div>
         </div>
@@ -172,7 +107,7 @@ export default function Index() {
       
       {currentView === 'admin' && (
         <AdminPanel 
-          onBack={() => setCurrentView(isAuthenticated && riderProfile ? 'dashboard' : 'auth')}
+          onBack={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
         />
       )}
       
@@ -182,7 +117,7 @@ export default function Index() {
             <div className="mb-4">
               <Button 
                 variant="outline" 
-                onClick={() => setCurrentView(isAuthenticated && riderProfile ? 'dashboard' : 'auth')}
+                onClick={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
               >
                 ← Back
               </Button>

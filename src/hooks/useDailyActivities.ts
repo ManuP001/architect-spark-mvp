@@ -44,18 +44,6 @@ export const useDailyActivities = (riderProfileId?: string) => {
 
     try {
       console.log('📝 Adding daily activity...', activityData);
-      
-      // Check if user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        console.error('❌ Auth error during activity creation:', userError);
-        throw new Error(`Authentication error: ${userError.message}`);
-      }
-      
-      if (!user) {
-        console.error('❌ No authenticated user for activity creation');
-        throw new Error('No authenticated user - Please sign up first');
-      }
 
       const { data, error } = await supabase
         .from('daily_activities')

@@ -16,26 +16,13 @@ export const useRiderProfile = () => {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching user profile...');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      console.log('🔍 Fetching rider profile...');
       
-      if (userError) {
-        console.error('❌ Auth error:', userError);
-        setError(`Authentication error: ${userError.message}`);
-        return;
-      }
-      
-      if (!user) {
-        console.log('⚠️ No authenticated user found');
-        setRiderProfile(null);
-        return;
-      }
-
-      console.log('✅ Authenticated user found:', user.id);
+      // Get the first rider profile (anonymous access)
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .select('*')
-        .eq('user_id', user.id)
+        .limit(1)
         .maybeSingle();
 
       if (profileError) {
@@ -93,24 +80,12 @@ export const useRiderProfile = () => {
   }) => {
     try {
       console.log('🚀 Creating rider profile...');
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
-      if (userError) {
-        console.error('❌ Auth error during profile creation:', userError);
-        throw new Error(`Authentication error: ${userError.message}`);
-      }
-      
-      if (!user) {
-        console.error('❌ No authenticated user for profile creation');
-        throw new Error('No authenticated user - Please sign up first');
-      }
-
-      console.log('✅ Creating profile for user:', user.id);
-      // Create rider profile
+      // Create rider profile without user authentication
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .insert({
-          user_id: user.id,
+          user_id: null, // No authentication required
           name: profileData.name,
           age: profileData.age,
           phone: profileData.phone,
