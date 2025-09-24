@@ -116,7 +116,7 @@ export type Database = {
           name: string
           phone: string
           updated_at: string
-          user_id: string | null
+          user_id: string
           weekly_goal: number
         }
         Insert: {
@@ -127,7 +127,7 @@ export type Database = {
           name: string
           phone: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
           weekly_goal: number
         }
         Update: {
@@ -138,7 +138,7 @@ export type Database = {
           name?: string
           phone?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
           weekly_goal?: number
         }
         Relationships: []

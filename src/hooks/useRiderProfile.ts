@@ -12,17 +12,40 @@ export const useRiderProfile = () => {
   const [platforms, setPlatforms] = useState<DeliveryPlatform[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  const ensureAuthenticated = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('🔐 No user session found, signing in anonymously...');
+      const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
+      
+      if (authError) {
+        throw new Error(`Authentication failed: ${authError.message}`);
+      }
+      
+      setUser(authData.user);
+      return authData.user;
+    }
+    
+    setUser(user);
+    return user;
+  };
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
       console.log('🔍 Fetching rider profile...');
       
-      // Get the first rider profile (anonymous access)
+      // Ensure we have an authenticated session
+      const currentUser = await ensureAuthenticated();
+      
+      // Get the user's rider profile (authenticated access)
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .select('*')
-        .limit(1)
+        .eq('user_id', currentUser.id)
         .maybeSingle();
 
       if (profileError) {
@@ -81,11 +104,14 @@ export const useRiderProfile = () => {
     try {
       console.log('🚀 Creating rider profile...');
       
-      // Create rider profile without user authentication
+      // Ensure we have an authenticated session
+      const currentUser = await ensureAuthenticated();
+      
+      // Create rider profile with user authentication
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .insert({
-          user_id: null, // No authentication required
+          user_id: currentUser.id, // Link to authenticated user
           name: profileData.name,
           age: profileData.age,
           phone: profileData.phone,
@@ -161,6 +187,7 @@ export const useRiderProfile = () => {
     platforms,
     loading,
     error,
+    user,
     createProfile,
     refreshProfile: fetchProfile,
   };

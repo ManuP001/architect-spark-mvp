@@ -15,6 +15,14 @@ export const useDailyActivities = (riderProfileId?: string) => {
 
     try {
       setLoading(true);
+      
+      // Ensure user is authenticated before fetching
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.warn('No authenticated user found');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('daily_activities')
         .select('*')
@@ -44,6 +52,12 @@ export const useDailyActivities = (riderProfileId?: string) => {
 
     try {
       console.log('📝 Adding daily activity...', activityData);
+      
+      // Ensure user is authenticated before adding activity
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User must be authenticated to add activities');
+      }
 
       const { data, error } = await supabase
         .from('daily_activities')
