@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { DeviceSession } from '@/utils/deviceSession';
 import type { Database } from '@/integrations/supabase/types';
 
 type RiderProfile = Database['public']['Tables']['rider_profiles']['Row'];
@@ -12,49 +13,35 @@ export const useRiderProfile = () => {
   const [platforms, setPlatforms] = useState<DeliveryPlatform[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
-
-  const ensureAuthenticated = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      console.log('🔐 No user session found, signing in anonymously...');
-      const { data: authData, error: authError } = await supabase.auth.signInAnonymously();
-      
-      if (authError) {
-        throw new Error(`Authentication failed: ${authError.message}`);
-      }
-      
-      setUser(authData.user);
-      return authData.user;
-    }
-    
-    setUser(user);
-    return user;
-  };
+  
+  const deviceId = DeviceSession.getDeviceId();
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching rider profile...');
+      setError(null);
+      console.log('🔍 Fetching rider profile for device:', deviceId);
       
-      // Ensure we have an authenticated session
-      const currentUser = await ensureAuthenticated();
-      
-      // Get the user's rider profile (authenticated access)
+      // Try to get profile for this device
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .select('*')
-        .eq('user_id', currentUser.id)
+        .eq('device_id', deviceId)
         .maybeSingle();
 
-      if (profileError) {
+      if (profileError && profileError.code !== 'PGRST116') {
         console.error('❌ Profile fetch error:', profileError);
         throw profileError;
       }
       
       console.log('📊 Profile fetched:', profile ? 'Found' : 'Not found');
       setRiderProfile(profile);
+      
+      // Store in session if found
+      if (profile) {
+        DeviceSession.setSession({ riderProfileId: profile.id });
+      }
+      
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch profile';
       console.error('❌ Profile fetch failed:', errorMsg);
@@ -102,16 +89,19 @@ export const useRiderProfile = () => {
     platforms: string[];
   }) => {
     try {
-      console.log('🚀 Creating rider profile...');
+      console.log('🚀 Creating rider profile for device:', deviceId);
       
-      // Ensure we have an authenticated session
-      const currentUser = await ensureAuthenticated();
+      // Validate mobile number
+      if (!DeviceSession.isValidMobile(profileData.phone)) {
+        throw new Error('Mobile number must be exactly 10 digits');
+      }
       
-      // Create rider profile with user authentication
+      // Create rider profile with device ID
       const { data: profile, error: profileError } = await supabase
         .from('rider_profiles')
         .insert({
-          user_id: currentUser.id, // Link to authenticated user
+          device_id: deviceId,
+          user_id: null,
           name: profileData.name,
           age: profileData.age,
           phone: profileData.phone,
@@ -126,6 +116,8 @@ export const useRiderProfile = () => {
         throw profileError;
       }
 
+      console.log('✅ Profile created:', profile);
+
       // Link service areas
       if (profileData.areas.length > 0) {
         const { data: areaData } = await supabase
@@ -133,7 +125,7 @@ export const useRiderProfile = () => {
           .select('id, name')
           .in('name', profileData.areas);
 
-        if (areaData) {
+        if (areaData && areaData.length > 0) {
           const areaLinks = areaData.map(area => ({
             rider_profile_id: profile.id,
             service_area_id: area.id,
@@ -143,7 +135,9 @@ export const useRiderProfile = () => {
             .from('rider_service_areas')
             .insert(areaLinks);
 
-          if (areaError) throw areaError;
+          if (areaError) {
+            console.error('⚠️ Service area link error:', areaError);
+          }
         }
       }
 
@@ -154,7 +148,7 @@ export const useRiderProfile = () => {
           .select('id, name')
           .in('name', profileData.platforms);
 
-        if (platformData) {
+        if (platformData && platformData.length > 0) {
           const platformLinks = platformData.map(platform => ({
             rider_profile_id: profile.id,
             platform_id: platform.id,
@@ -164,21 +158,30 @@ export const useRiderProfile = () => {
             .from('rider_platforms')
             .insert(platformLinks);
 
-          if (platformError) throw platformError;
+          if (platformError) {
+            console.error('⚠️ Platform link error:', platformError);
+          }
         }
       }
 
+      // Store in session and state
+      DeviceSession.setSession({ riderProfileId: profile.id });
       setRiderProfile(profile);
+      
       return profile;
     } catch (err) {
+      console.error('❌ Create profile failed:', err);
       throw err instanceof Error ? err : new Error('Failed to create profile');
     }
   };
 
   useEffect(() => {
-    fetchProfile();
-    fetchServiceAreas();
-    fetchPlatforms();
+    // Initialize data fetching
+    Promise.all([
+      fetchProfile(),
+      fetchServiceAreas(), 
+      fetchPlatforms()
+    ]);
   }, []);
 
   return {
@@ -187,7 +190,7 @@ export const useRiderProfile = () => {
     platforms,
     loading,
     error,
-    user,
+    deviceId,
     createProfile,
     refreshProfile: fetchProfile,
   };

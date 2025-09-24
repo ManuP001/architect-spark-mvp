@@ -111,34 +111,37 @@ export type Database = {
         Row: {
           age: number
           created_at: string
+          device_id: string | null
           hours_per_day: number
           id: string
           name: string
           phone: string
           updated_at: string
-          user_id: string
+          user_id: string | null
           weekly_goal: number
         }
         Insert: {
           age: number
           created_at?: string
+          device_id?: string | null
           hours_per_day: number
           id?: string
           name: string
           phone: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           weekly_goal: number
         }
         Update: {
           age?: number
           created_at?: string
+          device_id?: string | null
           hours_per_day?: number
           id?: string
           name?: string
           phone?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           weekly_goal?: number
         }
         Relationships: []

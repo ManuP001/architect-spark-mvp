@@ -1,19 +1,22 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import RiderOnboarding from "@/components/RiderOnboarding";
-import RiderDashboard from "@/components/RiderDashboard";
-import DailyDataForm from "@/components/DailyDataForm";
-import AdminPanel from "@/components/AdminPanel";
-import AuthTestPanel from "@/components/AuthTestPanel";
 import { useRiderProfile } from "@/hooks/useRiderProfile";
 import { useDailyActivities } from "@/hooks/useDailyActivities";
+import RiderOnboarding from "@/components/RiderOnboarding";
+import RiderDashboard from "@/components/RiderDashboard";
+import AdminPanel from "@/components/AdminPanel";
+import DailyDataForm from "@/components/DailyDataForm";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
+import { Bike, Settings } from "lucide-react";
 
 export default function Index() {
-  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'daily-input' | 'admin' | 'test'>('onboarding');
-  const { riderProfile, loading, refreshProfile } = useRiderProfile();
-  const { getWeeklyStats, refreshActivities } = useDailyActivities(riderProfile?.id);
-
-  // Set initial view based on profile existence
+  const [currentView, setCurrentView] = useState<'onboarding' | 'dashboard' | 'admin' | 'add-data'>('onboarding');
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  const { riderProfile, loading, error, refreshProfile } = useRiderProfile();
+  const { activities, getWeeklyStats } = useDailyActivities(riderProfile?.id);
+  
+  // Check if user has a profile and determine initial view
   useEffect(() => {
     if (!loading) {
       if (riderProfile) {
@@ -22,109 +25,135 @@ export default function Index() {
         setCurrentView('onboarding');
       }
     }
-  }, [riderProfile, loading]);
+  }, [loading, riderProfile]);
 
-  const weeklyStats = getWeeklyStats();
-  
-  // Create dashboard data from Supabase data
-  const dashboardData = riderProfile ? {
-    name: riderProfile.name,
-    weeklyGoal: Number(riderProfile.weekly_goal),
-    currentEarnings: weeklyStats.totalEarnings,
-    dailyData: weeklyStats.activities.map(activity => ({
-      date: activity.activity_date,
-      earnings: Number(activity.earnings),
-      hours: Number(activity.hours_worked),
-      platform: activity.primary_platform,
-      rating: activity.satisfaction_rating
-    })),
-    recommendations: [] // Mock for now
-  } : null;
+  // Handle onboarding completion
+  const handleOnboardingComplete = () => {
+    refreshProfile();
+    setCurrentView('dashboard');
+  };
+
+  // Create mock dashboard data from real activities
+  const createDashboardData = () => {
+    if (!riderProfile || !activities) return null;
+    
+    const weeklyStats = getWeeklyStats();
+    
+    return {
+      name: riderProfile.name,
+      weeklyGoal: Number(riderProfile.weekly_goal),
+      currentEarnings: weeklyStats.totalEarnings,
+      dailyData: activities.map(activity => ({
+        date: activity.activity_date,
+        earnings: Number(activity.earnings),
+        hours: Number(activity.hours_worked),
+        platform: activity.primary_platform,
+        rating: activity.satisfaction_rating,
+      })),
+      recommendations: [
+        {
+          id: '1',
+          message: `You're ${weeklyStats.totalEarnings >= Number(riderProfile.weekly_goal) ? 'ahead of' : 'behind'} your weekly target. ${weeklyStats.totalEarnings < Number(riderProfile.weekly_goal) ? 'Consider working during peak hours to boost earnings.' : 'Great work! Keep up the momentum.'}`,
+          urgency: (weeklyStats.totalEarnings >= Number(riderProfile.weekly_goal) ? 'low' : 'medium') as 'low' | 'medium' | 'high',
+          delivered: false,
+          followed: false,
+        },
+        {
+          id: '2', 
+          message: weeklyStats.totalHours > 0 ? `Your average rating is ${weeklyStats.avgRating.toFixed(1)}/5. ${weeklyStats.avgRating < 4 ? 'Focus on customer service to improve ratings.' : 'Excellent customer satisfaction!'}` : 'Add your first activity to get personalized recommendations.',
+          urgency: (weeklyStats.avgRating < 4 ? 'high' : 'low') as 'low' | 'medium' | 'high',
+          delivered: false,
+          followed: false,
+        }
+      ]
+    };
+  };
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-destructive text-lg mb-4">⚠️ Error loading app</div>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button onClick={refreshProfile}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading...</p>
+          <div className="gradient-hero w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center shadow-glow animate-pulse">
+            <Bike className="h-8 w-8 text-white" />
+          </div>
+          <p className="text-muted-foreground">Loading Rider Co-pilot...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render current view
+  if (currentView === 'onboarding') {
+    return <RiderOnboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  if (currentView === 'add-data' && riderProfile) {
+    return (
+      <DailyDataForm
+        onSubmit={() => setCurrentView('dashboard')}
+        onBack={() => setCurrentView('dashboard')}
+      />
+    );
+  }
+
+  if (currentView === 'admin') {
+    return (
+      <AdminPanel onBack={() => setCurrentView('dashboard')} />
+    );
+  }
+
+  // Dashboard view
+  const dashboardData = createDashboardData();
+  
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Unable to load dashboard data</p>
+          <Button onClick={refreshProfile}>Refresh</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      {currentView === 'onboarding' && (
-        <RiderOnboarding onComplete={() => {
-          refreshProfile();
-          setCurrentView('dashboard');
-        }} />
-      )}
-      
-      {currentView === 'dashboard' && dashboardData && (
-        <div className="relative">
-          <RiderDashboard 
-            riderData={dashboardData}
-            onAddDailyData={() => setCurrentView('daily-input')}
-            onViewRecommendations={() => alert('Recommendations feature coming soon!')}
-          />
-          
-          <div className="fixed bottom-4 right-4 flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setCurrentView('test')}
-            >
-              Debug
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setCurrentView('admin')}
-            >
-              Admin
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setCurrentView('onboarding')}
-            >
-              New Profile
-            </Button>
-          </div>
-        </div>
-      )}
-      
-      {currentView === 'daily-input' && (
-        <DailyDataForm 
-          onSubmit={() => {
-            refreshActivities();
-            setCurrentView('dashboard');
-          }}
-          onBack={() => setCurrentView('dashboard')}
+    <div className="relative">
+      {/* Admin Toggle */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsAdmin(!isAdmin)}
+          className="shadow-lg"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          {isAdmin ? 'User' : 'Admin'}
+        </Button>
+      </div>
+
+      {isAdmin ? (
+        <AdminPanel onBack={() => setIsAdmin(false)} />
+      ) : (
+        <RiderDashboard
+          riderData={dashboardData}
+          onAddDailyData={() => setCurrentView('add-data')}
+          onViewRecommendations={() => toast({
+            title: "Recommendations",
+            description: "View all your personalized earning recommendations.",
+          })}
         />
-      )}
-      
-      {currentView === 'admin' && (
-        <AdminPanel 
-          onBack={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
-        />
-      )}
-      
-      {currentView === 'test' && (
-        <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 p-4">
-          <div className="max-w-4xl mx-auto pt-8">
-            <div className="mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setCurrentView(riderProfile ? 'dashboard' : 'onboarding')}
-              >
-                ← Back
-              </Button>
-            </div>
-            <AuthTestPanel />
-          </div>
-        </div>
       )}
     </div>
   );

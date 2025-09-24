@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { DeviceSession } from '@/utils/deviceSession';
 import type { Database } from '@/integrations/supabase/types';
 
 type DailyActivity = Database['public']['Tables']['daily_activities']['Row'];
-type DailyActivityInsert = Database['public']['Tables']['daily_activities']['Insert'];
 
 export const useDailyActivities = (riderProfileId?: string) => {
   const [activities, setActivities] = useState<DailyActivity[]>([]);
@@ -15,13 +15,8 @@ export const useDailyActivities = (riderProfileId?: string) => {
 
     try {
       setLoading(true);
-      
-      // Ensure user is authenticated before fetching
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.warn('No authenticated user found');
-        return;
-      }
+      setError(null);
+      console.log('📊 Fetching daily activities for profile:', riderProfileId);
       
       const { data, error } = await supabase
         .from('daily_activities')
@@ -30,9 +25,13 @@ export const useDailyActivities = (riderProfileId?: string) => {
         .order('activity_date', { ascending: false });
 
       if (error) throw error;
+      
+      console.log('✅ Activities fetched:', data?.length || 0);
       setActivities(data || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch activities');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch activities';
+      console.error('❌ Fetch activities failed:', errorMsg);
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -47,16 +46,23 @@ export const useDailyActivities = (riderProfileId?: string) => {
   }) => {
     if (!riderProfileId) {
       console.error('❌ No rider profile ID for activity');
-      throw new Error('No rider profile ID');
+      throw new Error('No rider profile ID available');
     }
 
     try {
       console.log('📝 Adding daily activity...', activityData);
       
-      // Ensure user is authenticated before adding activity
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User must be authenticated to add activities');
+      // Validate inputs
+      if (activityData.earnings < 0) {
+        throw new Error('Earnings cannot be negative');
+      }
+      
+      if (activityData.hours <= 0 || activityData.hours > 24) {
+        throw new Error('Hours worked must be between 0.1 and 24');
+      }
+      
+      if (activityData.rating < 1 || activityData.rating > 5) {
+        throw new Error('Rating must be between 1 and 5');
       }
 
       const { data, error } = await supabase
@@ -78,8 +84,10 @@ export const useDailyActivities = (riderProfileId?: string) => {
       }
       
       console.log('✅ Activity created successfully:', data);
+      
       // Add to local state
       setActivities(prev => [data, ...prev]);
+      
       return data;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to add activity';
@@ -90,7 +98,7 @@ export const useDailyActivities = (riderProfileId?: string) => {
 
   const getWeeklyStats = () => {
     const now = new Date();
-    const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
     weekStart.setHours(0, 0, 0, 0);
 
     const weeklyActivities = activities.filter(activity => 
@@ -119,7 +127,9 @@ export const useDailyActivities = (riderProfileId?: string) => {
   };
 
   useEffect(() => {
-    fetchActivities();
+    if (riderProfileId) {
+      fetchActivities();
+    }
   }, [riderProfileId]);
 
   return {
